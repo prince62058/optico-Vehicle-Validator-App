@@ -1,19 +1,24 @@
 import { StyleSheet } from 'react-native';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/Ionicons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Import your screen components
+import Login from '../Screens/Login';
+import AdminLogin from '../Screens/AdminLogin';
 import Home from '../Screens/Home';
 import AddVehicle from '../Screens/AddVehicle';
-import Display from '../Screens/Display';
 import Update from '../Screens/Update';
+import Display from '../Screens/Display';
+import VehicleDetails from '../Screens/VehicleDetails';
 import Admin from '../Screens/Admin';
-import VehicleDetails from '../Screens/VehicleDetails'; // Example detail screen
 
-const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
+const Tab = createBottomTabNavigator();
+
+// ...
 
 // Home Stack Navigator
 const HomeStack = () => {
@@ -26,6 +31,14 @@ const HomeStack = () => {
         options={{
           headerShown: true,
           title: 'Vehicle Details',
+        }}
+      />
+      <Stack.Screen
+        name="Update"
+        component={Update}
+        options={{
+          headerShown: true,
+          title: 'Update Vehicle',
         }}
       />
     </Stack.Navigator>
@@ -45,15 +58,14 @@ const DisplayStack = () => {
           title: 'Vehicle Details',
         }}
       />
-    </Stack.Navigator>
-  );
-};
-
-// Update Stack Navigator
-const UpdateStack = () => {
-  return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="UpdateMain" component={Update} />
+      <Stack.Screen
+        name="Update"
+        component={Update}
+        options={{
+          headerShown: true,
+          title: 'Update Vehicle',
+        }}
+      />
     </Stack.Navigator>
   );
 };
@@ -68,7 +80,9 @@ const AdminStack = () => {
 };
 
 // Bottom Tab Navigator
-const MyTabs = () => {
+const MyTabs = ({ route }) => {
+  const { userRole } = route.params || {}; // Get role from params
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -82,8 +96,6 @@ const MyTabs = () => {
             iconName = focused ? 'add-circle' : 'add-circle-outline';
           } else if (route.name === 'Display') {
             iconName = focused ? 'list' : 'list-outline';
-          } else if (route.name === 'Update') {
-            iconName = focused ? 'create' : 'create-outline';
           } else if (route.name === 'Admin') {
             iconName = focused ? 'settings' : 'settings-outline';
           }
@@ -110,13 +122,17 @@ const MyTabs = () => {
           tabBarLabel: 'Home',
         }}
       />
-      <Tab.Screen
-        name="AddVehicle"
-        component={AddVehicle}
-        options={{
-          tabBarLabel: 'Add',
-        }}
-      />
+
+      {(userRole === 'superadmin' || userRole === 'admin') && (
+        <Tab.Screen
+          name="AddVehicle"
+          component={AddVehicle}
+          options={{
+            tabBarLabel: 'Add',
+          }}
+        />
+      )}
+
       <Tab.Screen
         name="Display"
         component={DisplayStack}
@@ -124,29 +140,61 @@ const MyTabs = () => {
           tabBarLabel: 'Display',
         }}
       />
-      <Tab.Screen
-        name="Update"
-        component={UpdateStack}
-        options={{
-          tabBarLabel: 'Update',
-        }}
-      />
-      <Tab.Screen
-        name="Admin"
-        component={AdminStack}
-        options={{
-          tabBarLabel: 'Admin',
-        }}
-      />
+
+      {(userRole === 'superadmin' || userRole === 'admin') && (
+        <Tab.Screen
+          name="Admin"
+          component={AdminStack}
+          options={{
+            tabBarLabel: 'Admin',
+          }}
+        />
+      )}
     </Tab.Navigator>
   );
 };
 
 // Main Stack Navigator
 const VehicleNavigator = () => {
+  const [initialRoute, setInitialRoute] = useState(null);
+  const [userRole, setUserRole] = useState(null);
+
+  useEffect(() => {
+    const checkToken = async () => {
+      try {
+        const token = await AsyncStorage.getItem('userToken');
+        const userInfo = await AsyncStorage.getItem('userInfo');
+
+        if (token && userInfo) {
+          const user = JSON.parse(userInfo);
+          setUserRole(user.role);
+          setInitialRoute('BottomTabs');
+        } else {
+          setInitialRoute('Login');
+        }
+      } catch (e) {
+        setInitialRoute('Login');
+      }
+    };
+    checkToken();
+  }, []);
+
+  if (initialRoute === null) {
+    return null;
+  }
+
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="BottomTabs" component={MyTabs} />
+    <Stack.Navigator
+      initialRouteName={initialRoute}
+      screenOptions={{ headerShown: false }}
+    >
+      <Stack.Screen name="Login" component={Login} />
+      <Stack.Screen name="AdminLogin" component={AdminLogin} />
+      <Stack.Screen
+        name="BottomTabs"
+        component={MyTabs}
+        initialParams={{ userRole }} // Pass role as initial param
+      />
       {/* Add any modal screens here */}
       <Stack.Screen
         name="VehicleForm"
